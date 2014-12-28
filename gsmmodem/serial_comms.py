@@ -6,9 +6,55 @@ import sys, threading, logging
 
 import re
 import serial # pyserial: http://pyserial.sourceforge.net
+import socket
 
 from .exceptions import TimeoutException
 from . import compat # For Python 2.6 compatibility
+
+
+class TCPSerial(socket.socket):
+    def __init__(self, host, port, timeout):
+        super(TCPSerial, self).__init__(socket.AF_INET, socket.SOCK_STREAM)
+        self.settimeout(timeout)
+        self.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        self._tcp_timeout = timeout
+        self._host = host
+        self._port = port
+        self._connect()
+
+    def _connect(self):
+        self.connect((self._host, self._port))
+
+    def _reconnect(self):
+        self.close()
+        self._connect()
+
+    def inWaiting(self):
+        try:
+            self.settimeout(0)
+            return len(self.recv(1024, socket.MSG_PEEK))
+        except socket.error:
+            return 0
+        finally:
+            self.settimeout(self._tcp_timeout)
+
+    def read(self, bufsize=1, flags=0):
+        try:
+            res = self.recv(bufsize, flags)
+        except socket.timeout:
+            return ""
+        return res
+
+    def write(self, string, flags=0):
+        return self.send(string, flags)
+
+    def close(self):
+        try:
+            self.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        super(TCPSerial, self).close()
+
 
 class SerialComms(object):
     """ Wraps all low-level serial communications (actual read/write operations) """
@@ -29,7 +75,12 @@ class SerialComms(object):
         :type fatalErrorCallbackFunc: func
         """     
         self.alive = False
+        self.host = None
+        self.tcp_port = None
         self.port = port
+        if port.find(":") != -1:  # TCP port
+            self.host, port = port.split(":")
+            self.tcp_port = int(port)
         self.baudrate = baudrate
         
         self._responseEvent = None # threading.Event()
@@ -44,7 +95,10 @@ class SerialComms(object):
         
     def connect(self):
         """ Connects to the device and starts the read thread """                
-        self.serial = serial.Serial(port=self.port, baudrate=self.baudrate, timeout=self.timeout)
+        if self.host is None:
+            self.serial = serial.Serial(port=self.port, baudrate=self.baudrate, timeout=self.timeout)
+        else:
+            self.serial = TCPSerial(self.host, self.tcp_port, self.timeout)
         # Start read thread
         self.alive = True 
         self.rxThread = threading.Thread(target=self._readLoop)
