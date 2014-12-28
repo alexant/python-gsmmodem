@@ -160,6 +160,9 @@ class GsmModem(SerialComms):
         self._smsMemReadDelete = None # Preferred message storage memory for reads/deletes (<mem1> parameter used for +CPMS)
         self._smsMemWrite = None # Preferred message storage memory for writes (<mem2> parameter used for +CPMS)
         self._smsReadSupported = True # Whether or not reading SMS messages is supported via AT commands
+        # CMGD command format (some modems want 'AT+CMGD={0}')
+        self.smsDeleteCmd = 'AT+CMGD={0},0'
+
 
     def connect(self, pin=None):
         """ Opens the port and initializes the modem and SIM card
@@ -528,7 +531,7 @@ class GsmModem(SerialComms):
                 self.write('AT+CMGF={0}'.format(1 if textMode else 0))
             self._smsTextMode = textMode
             self._compileSmsRegexes()
-    
+
     def _setSmsMemory(self, readDelete=None, write=None):
         """ Set the current SMS memory to use for read/delete/write operations """
         # Switch to the correct memory type if required
@@ -1083,7 +1086,7 @@ class GsmModem(SerialComms):
         :raise CommandError: if unable to delete the stored message
         """
         self._setSmsMemory(readDelete=memory)
-        self.write('AT+CMGD={0},0'.format(index))
+        self.write(self.smsDeleteCmd.format(index))
     
     def deleteMultipleStoredSms(self, delFlag=4, memory=None):
         """ Deletes all SMS messages that have the specified read status.
