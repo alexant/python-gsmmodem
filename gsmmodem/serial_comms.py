@@ -53,7 +53,10 @@ class TCPSerial(socket.socket):
             self.shutdown(socket.SHUT_RDWR)
         except:
             pass
-        super(TCPSerial, self).close()
+        try:
+            super(TCPSerial, self).close()
+        except:
+            pass
 
 
 class SerialComms(object):
