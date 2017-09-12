@@ -188,6 +188,7 @@ class GsmModem(SerialComms):
             self.write('ATZ') # reset configuration        
         else:
             pinCheckComplete = False
+        time.sleep(1)
         self.write('ATE0') # echo off
         try:
             cfun = int(lineStartingWith('+CFUN:', self.write('AT+CFUN?'))[7:]) # example response: +CFUN: 1
